@@ -1,0 +1,7 @@
+[package]
+name = "fileserv"
+version = "0.1.0"
+authors = ["Nic Hartley <nxh9052@rit.edu>"]
+edition = "2018"
+
+[dependencies]
