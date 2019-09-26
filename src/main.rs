@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     env,
-    io::{self, Lines, BufRead, BufReader, Write as _},
+    io::{self, Read, Lines, BufRead, BufReader, Write as _},
     net,
     path::{Path, PathBuf},
     fs::File,
@@ -40,6 +40,29 @@ fn get_path<B: BufRead>(input: &mut Lines<B>) -> String {
     first_line[url_start + 1..url_start + url_length].to_owned()
 }
 
+struct Response {
+    code: &'static str,
+    headers: Vec<(String, String)>,
+    body_type: String,
+    body_len: u64,
+    body: Option<Box<dyn Read>>,
+}
+
+fn get_response(filepath: &Path) -> Response {
+    Response {
+        code: "200 OK",
+        headers: vec![],
+        body_type: "text/plain".into(),
+        body_len: 13,
+        body: Some(Box::new("Hello, World!".as_bytes())),
+    }
+    /*
+    // TOOD: Send response based on url, relevant headers
+    let mut doc = File::open(filepath).expect("failed to open file");
+    let metadata = doc.metadata().expect("failed to read metadata");
+    */
+}
+
 fn main() {
     let load_start = Instant::now();
     let (dir, host, _mappings) = match get_args() {
@@ -58,8 +81,8 @@ fn main() {
     };
     let load_time = Instant::now().duration_since(load_start);
     println!(
-        "Launched in {}us; listening on {}; serving from {}",
-        load_time.as_micros(),
+        "Launched in {}ms; listening on {}; serving from {}",
+        load_time.as_millis(),
         host,
         dir.display()
     );
@@ -83,23 +106,27 @@ fn main() {
             }
             // println!("Header: {}", line);
         }
-        let mut doc = File::open(filepath).expect("failed to open file");
-        let metadata = doc.metadata().expect("failed to read metadata");
-        // TOOD: Send response based on url, relevant headers
+        let response = get_response(&filepath);
         write!(
             conn,
             concat!(
-                "HTTP/1.1 200 OK\n",
-                "Content-Type: text/plain\n",
-                "Content-Length: {len}\n",
-                "\n",
+                "HTTP/1.1 {status}\n",
+                "Content-Type: {type}\n",
+                "Content-Length: {length}\n",
             ),
-            len = metadata.len(),
-        )
-        .expect("failed to write response");
-        io::copy(&mut doc, &mut conn).expect("failed to write to stream");
+            status = response.code,
+            type = response.body_type,
+            length = response.body_len,
+        ).expect("failed to write start to stream");
+        for (name, val) in response.headers {
+            write!(conn, "{}: {}\n", name, val).expect("failed to write header to stream");
+        }
+        write!(conn, "\n").expect("failed to write separator to stream");
+        if let Some(mut body) = response.body {
+            io::copy(&mut body, &mut conn).expect("failed to write body to stream");
+        }
         conn.flush().expect("failed to flush response");
         let resp_time = Instant::now().duration_since(resp_start);
-        println!("Served {} in {}us", url, resp_time.as_micros());
+        println!("Served {} ({}) in {}ms", url, response.code, resp_time.as_millis());
     }
 }
