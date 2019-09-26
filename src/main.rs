@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     env,
-    io::{self, Read, Lines, BufRead, BufReader, Write as _},
+    io::{self, Read, Lines, BufRead, BufReader, BufWriter, Write as _},
     net,
     path::{Path, PathBuf},
     fs::File,
@@ -33,34 +33,71 @@ fn get_args() -> Result<(PathBuf, String, Vec<(String, String)>), String> {
 
 fn get_path<B: BufRead>(input: &mut Lines<B>) -> String {
     let first_line = input.next().expect("pipe ended early").expect("failed to read from TCP");
-    println!("First line: '{}'", first_line);
     let url_start = first_line.find(" ").expect("no space") + 1;
     let url_length = first_line[url_start..].find(" ").expect("no second space");
-    // + 1 to remove slash
-    first_line[url_start + 1..url_start + url_length].to_owned()
+    first_line[url_start..url_start + url_length].to_owned()
 }
 
-struct Response {
-    code: &'static str,
-    headers: Vec<(String, String)>,
-    body_type: String,
-    body_len: u64,
-    body: Option<Box<dyn Read>>,
+enum Response {
+    Ok {
+        headers: Vec<(String, String)>,
+        body_type: String,
+        body_len: u64,
+        body: Box<dyn Read>, // TODO replace with concrete type?
+    },
+    NotFound,
+    Error(String),
+}
+
+impl Response {
+    fn code(&self) -> u16 {
+        match self {
+            Response::Ok { .. } => 200,
+            Response::NotFound => 404,
+            Response::Error(_) => 500,
+        }
+    }
 }
 
 fn get_response(filepath: &Path) -> Response {
-    Response {
-        code: "200 OK",
-        headers: vec![],
-        body_type: "text/plain".into(),
-        body_len: 13,
-        body: Some(Box::new("Hello, World!".as_bytes())),
-    }
     /*
     // TOOD: Send response based on url, relevant headers
     let mut doc = File::open(filepath).expect("failed to open file");
     let metadata = doc.metadata().expect("failed to read metadata");
     */
+    Response::Ok {
+        headers: vec![],
+        body_type: "text/plain".into(),
+        body_len: 13,
+        body: Box::new("Hello, World!".as_bytes()),
+    }
+}
+
+fn write_response(mut conn: net::TcpStream, response: Response) {
+    match response {
+        Response::Ok { headers, body_type, body_len, mut body } => {
+            let mut bufout = BufWriter::new(&mut conn);
+            write!(bufout, "HTTP/1.1 200 OK\n").expect("failed to write to stream");
+            write!(bufout, "Content-Type: {}\n", body_type).expect("failed to write to stream");
+            write!(bufout, "Content-Length: {}\n", body_len).expect("failed to write to stream");
+            write!(bufout, "Connection: close\n",).expect("failed to write to stream");
+            for (name, val) in headers {
+                write!(bufout, "{}: {}\n", name, val).expect("failed to write header to stream");
+            }
+            write!(bufout, "\n").expect("failed to write separator to stream");
+            io::copy(&mut body, &mut bufout).expect("failed to write body to stream");
+        }
+        Response::NotFound => {
+            write!(conn, concat!(
+                "HTTP/1.1 404 Not Found\n",
+                "Content-Length: 0\n",
+                "Connection: close\n",
+                "\n"
+            )).expect("failed to write error to stream");
+        }
+        _ => println!("Unknown response type"),
+    }
+    conn.flush().expect("failed to flush response");
 }
 
 fn main() {
@@ -96,8 +133,7 @@ fn main() {
         // TODO: Read through request to get url + headers
         let mut input = BufReader::new(&mut conn).lines();
         let url = get_path(&mut input);
-        let filepath = dir.join(&url);
-        println!("request is for {:?} = {:?}", url, filepath);
+        let filepath = dir.join(&url[1..]);
         // let content_types;
         for line in input {
             let line = line.expect("failed to read from TCP");
@@ -107,26 +143,9 @@ fn main() {
             // println!("Header: {}", line);
         }
         let response = get_response(&filepath);
-        write!(
-            conn,
-            concat!(
-                "HTTP/1.1 {status}\n",
-                "Content-Type: {type}\n",
-                "Content-Length: {length}\n",
-            ),
-            status = response.code,
-            type = response.body_type,
-            length = response.body_len,
-        ).expect("failed to write start to stream");
-        for (name, val) in response.headers {
-            write!(conn, "{}: {}\n", name, val).expect("failed to write header to stream");
-        }
-        write!(conn, "\n").expect("failed to write separator to stream");
-        if let Some(mut body) = response.body {
-            io::copy(&mut body, &mut conn).expect("failed to write body to stream");
-        }
-        conn.flush().expect("failed to flush response");
+        let code = response.code();
+        write_response(conn, response);
         let resp_time = Instant::now().duration_since(resp_start);
-        println!("Served {} ({}) in {}ms", url, response.code, resp_time.as_millis());
+        println!("Served {} with {} in {}ms", url, code, resp_time.as_millis());
     }
 }
