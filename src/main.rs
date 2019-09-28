@@ -3,12 +3,30 @@ use std::{
     env,
     io::{self, Read, Lines, BufRead, BufReader, BufWriter, Write as _},
     net,
+    fmt,
     path::{Path, PathBuf},
     fs::File,
     time::Instant,
 };
 
-fn get_args() -> Result<(PathBuf, String, Vec<(String, String)>), String> {
+#[derive(Debug)]
+enum Failure {
+    EarlyInputEnd,
+    EarlyOutputEnd,
+    InvalidFormat(String),
+}
+
+impl fmt::Display for Failure {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Failure::EarlyInputEnd => write!(f, "input ended earlier than expected"),
+            Failure::EarlyOutputEnd => write!(f, "output pipe broke while we had more to write"),
+            Failure::InvalidFormat(s) => write!(f, "'{}' is incorrectly formatted", s),
+        }
+    }
+}
+
+fn get_args() -> Result<(PathBuf, String, Vec<(String, String)>), Failure> {
     let mut args = env::args().skip(1);
     let dir = Path::new(&args.next().unwrap_or(".".into())).to_path_buf();
     let host = args.next().unwrap_or("localhost:8080".into());
@@ -22,7 +40,7 @@ fn get_args() -> Result<(PathBuf, String, Vec<(String, String)>), String> {
     mappings.insert(".ico".into(), "image/vnd.microsoft.icon".into());
     mappings.insert(".svg".into(), "image/svg+xml".into());
     for pair in args {
-        let eq_idx = pair.find("=").expect("no =");
+        let eq_idx = pair.find("=").ok_or_else(|| Failure::InvalidFormat(pair.clone()))?;
         let (ext, mime) = pair.split_at(eq_idx);
         mappings.insert(ext.into(), mime.into());
     }
@@ -31,11 +49,12 @@ fn get_args() -> Result<(PathBuf, String, Vec<(String, String)>), String> {
     Ok((dir, host, mappings))
 }
 
-fn get_path<B: BufRead>(input: &mut Lines<B>) -> String {
-    let first_line = input.next().expect("pipe ended early").expect("failed to read from TCP");
-    let url_start = first_line.find(" ").expect("no space") + 1;
-    let url_length = first_line[url_start..].find(" ").expect("no second space");
-    first_line[url_start..url_start + url_length].to_owned()
+fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
+    let first_line = input.next().ok_or(Failure::EarlyInputEnd)?.or(Err(Failure::EarlyInputEnd))?;
+    // +1 because we actually care about the next character, not this one
+    let url_start = first_line.find(" ").ok_or_else(|| Failure::InvalidFormat(first_line.clone()))? + 1;
+    let url_length = first_line[url_start..].find(" ").ok_or_else(|| Failure::InvalidFormat(first_line.clone()))?;
+    Ok(first_line[url_start..url_start + url_length].to_owned())
 }
 
 enum Response {
@@ -60,11 +79,9 @@ impl Response {
 }
 
 fn get_response(filepath: &Path) -> Response {
-    /*
     // TOOD: Send response based on url, relevant headers
-    let mut doc = File::open(filepath).expect("failed to open file");
-    let metadata = doc.metadata().expect("failed to read metadata");
-    */
+    // let mut doc = File::open(filepath).expect("failed to open file");
+    // let metadata = doc.metadata().expect("failed to read metadata");
     Response::Ok {
         headers: vec![],
         body_type: "text/plain".into(),
@@ -74,9 +91,9 @@ fn get_response(filepath: &Path) -> Response {
 }
 
 fn write_response(mut conn: net::TcpStream, response: Response) {
+    let mut bufout = BufWriter::new(conn);
     match response {
         Response::Ok { headers, body_type, body_len, mut body } => {
-            let mut bufout = BufWriter::new(&mut conn);
             write!(bufout, "HTTP/1.1 200 OK\n").expect("failed to write to stream");
             write!(bufout, "Content-Type: {}\n", body_type).expect("failed to write to stream");
             write!(bufout, "Content-Length: {}\n", body_len).expect("failed to write to stream");
@@ -88,16 +105,23 @@ fn write_response(mut conn: net::TcpStream, response: Response) {
             io::copy(&mut body, &mut bufout).expect("failed to write body to stream");
         }
         Response::NotFound => {
-            write!(conn, concat!(
+            write!(bufout, concat!(
                 "HTTP/1.1 404 Not Found\n",
                 "Content-Length: 0\n",
                 "Connection: close\n",
                 "\n"
             )).expect("failed to write error to stream");
         }
-        _ => println!("Unknown response type"),
+        Response::Error(msg) => {
+            write!(bufout, concat!(
+                "HTTP/1.1 404 Not Found\n",
+                "Content-Length: {len}\n",
+                "Connection: close\n",
+                "\n",
+                "{msg}"
+            ), len = msg.len(), msg = msg).expect("failed to write error to stream");
+        }
     }
-    conn.flush().expect("failed to flush response");
 }
 
 fn main() {
@@ -105,7 +129,7 @@ fn main() {
     let (dir, host, _mappings) = match get_args() {
         Ok(t) => t,
         Err(msg) => {
-            eprintln!("{}", msg);
+            println!("Invalid command: {:?}", msg);
             return;
         }
     };
@@ -132,7 +156,10 @@ fn main() {
         };
         // TODO: Read through request to get url + headers
         let mut input = BufReader::new(&mut conn).lines();
-        let url = get_path(&mut input);
+        let url = match get_path(&mut input) {
+            Ok(u) => u,
+            Err(e) => { println!("Failed to get path: {:?}", e); continue; },
+        };
         let filepath = dir.join(&url[1..]);
         // let content_types;
         for line in input {
