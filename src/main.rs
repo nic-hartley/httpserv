@@ -80,13 +80,19 @@ impl Response {
 
 fn get_response(filepath: &Path) -> Response {
     // TOOD: Send response based on url, relevant headers
-    // let mut doc = File::open(filepath).expect("failed to open file");
-    // let metadata = doc.metadata().expect("failed to read metadata");
+    let mut doc = match File::open(filepath) {
+        Ok(d) => d,
+        Err(e) => match e.kind() {
+            io::ErrorKind::NotFound => return Response::NotFound,
+            o => return Response::Error(format!("{:?}", o)),
+        }
+    };
+    let metadata = doc.metadata().expect("failed to read metadata for real file");
     Response::Ok {
         headers: vec![],
         body_type: "text/plain".into(),
-        body_len: 13,
-        body: Box::new("Hello, World!".as_bytes()),
+        body_len: metadata.len(),
+        body: Box::new(doc),
     }
 }
 
