@@ -88,13 +88,10 @@ impl Response {
 }
 
 fn get_response(filepath: &Path, mappings: &HashMap<OsString, String>) -> Response {
-    // TOOD: Send response based on url, relevant headers
     // TODO: More robust extension checking + checking for match with Accept header
-    let (filepath, ext) = match filepath.extension() {
-        Some(e) => (filepath.into(), e.to_owned()),
-        None => {
-            (filepath.join("index.html"), "html".into())
-        }
+    let ext = match filepath.extension() {
+        Some(e) => e.to_owned(),
+        None => "".into(),
     };
     let mapped_type = match mappings.get(&ext) {
         Some(t) => t.clone(),
@@ -206,6 +203,11 @@ fn main() {
             }
         };
         let filepath = dir.join(&url[1..]);
+        let filepath = if filepath.is_dir() {
+            filepath.join("index.html")
+        } else {
+            filepath
+        };
         // let content_types;
         for line in input {
             let line = line.expect("failed to read from TCP");
