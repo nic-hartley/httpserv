@@ -1,5 +1,5 @@
 [package]
-name = "fileserv"
+name = "httpserv"
 version = "0.5.0"
 authors = ["Nic Hartley <nic@cybers.eco>"]
 edition = "2018"
