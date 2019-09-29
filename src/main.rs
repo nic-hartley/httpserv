@@ -4,7 +4,7 @@ use std::{
     fs::File,
     io::{self, BufRead, BufReader, BufWriter, Lines, Read, Write as _},
     net,
-    path::{Path, PathBuf},
+    path::{Path, PathBuf, Component},
     time::Instant,
     ffi::OsString,
 };
@@ -203,6 +203,11 @@ fn main() {
             }
         };
         let filepath = dir.join(&url[1..]);
+        if filepath.components().any(|c| c == Component::ParentDir) {
+            // no legit reason to  use `..` in requests
+            println!("Ignoring probably-malicious request");
+            continue;
+        }
         let filepath = if filepath.is_dir() {
             filepath.join("index.html")
         } else {
