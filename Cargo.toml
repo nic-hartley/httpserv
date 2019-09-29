@@ -5,5 +5,6 @@ authors = ["Nic Hartley <nic@cybers.eco>"]
 edition = "2018"
 license = "BSD-3-Clause"
 description = "A tiny, zero-dependency fileserver for local HTML development"
+repository = "https://github.com/nic-hartley/httpserv"
 
 [dependencies]
