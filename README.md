@@ -20,6 +20,7 @@ Planned tasks in no particular order include:
 - Ensure the `..` block works as expected with other browsers
 - Better error handling, so errors are less likely to crash the entire program
 - Supporting percent-encoding in URLs
+- Testing of some kind
 - More easily customizable mappings, to support extensions with `.`s in them
 - Multithreading, maybe feature-gated, useful for serving lots of little files
 - Respecting `Accept` headers
