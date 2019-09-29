@@ -4,7 +4,8 @@ version = "0.5.1"
 authors = ["Nic Hartley <nic@cybers.eco>"]
 edition = "2018"
 license = "BSD-3-Clause"
-description = "A tiny, zero-dependency fileserver for local HTML development"
+readme = "README.md"
+description = "A tiny, zero-dependency fileserver for local HTML development."
 repository = "https://github.com/nic-hartley/httpserv"
 
 [dependencies]
