@@ -209,6 +209,14 @@ fn main() {
             continue;
         }
         let filepath = if filepath.is_dir() {
+            if !url.ends_with("/") {
+                let _r = write!(conn, concat!(
+                    "HTTP/1.1 301 Moved Permanently\n",
+                    "Location: {}/\n",
+                    "\n"
+                ), url);
+                continue;
+            }
             filepath.join("index.html")
         } else {
             filepath
