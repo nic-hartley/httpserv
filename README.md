@@ -7,6 +7,7 @@ nothing but just serve the file you name over HTTP. Specifically, all it does
 is:
 
 - Parse the URL to find the local filepath
+- Make sure that URL doesn't contain `..`s
 - If that filepath points to a directory, add `/index.html`
 - Use the extension to figure out the `Content-Type`
 - Send the file back
@@ -20,14 +21,15 @@ Planned tasks in no particular order include:
 - Ensure the `..` block works as expected with other browsers
 - Better error handling, so errors are less likely to crash the entire program
 - Supporting percent-encoding in URLs
-- Testing of some kind
+- Testing of any kind (probably integration tests)
 - More easily customizable mappings, to support extensions with `.`s in them
 - Multithreading, maybe feature-gated, useful for serving lots of little files
 - Respecting `Accept` headers
 - Support for `Content-Encoding`, especially `gzip` (for pre-`gzip`'d files)
 - Feature-gated TLS support, useful for testing sites that make requests to
-  HTTPS sites.
-- Feature-gated advanced option parsing with getopts or clap
+  HTTPS sites
+- Feature-gated advanced option parsing with getopts or clap, for more typical
+  command syntax
 - Feature-gated Markdown parsing
 
 Planned non-features include:
@@ -35,18 +37,20 @@ Planned non-features include:
 - Any dependencies by default (behind a feature gate is fine)
 - Maximizing response speed where it would cost ease of use or setup speed
 - Anything that gives httpserv a noticeable delay
+- Intentional suitability for any production use cases
 
 # Install
-
-> Note: As this crate hasn't been published yet, I haven't tested this yet. I
-> will soon.
 
 ```
 cargo install httpserv
 ```
 
 That's it. Assuming the Cargo bin directory is on your path, you can now call
-`httpserv` from your command line.
+`httpserv` from your command line. For directions on installing Cargo, please
+see [here](https://rustup.rs/).
+
+On WSL, you may need to call `httpserv.exe` instead, depending on if you've
+got Rust installed on the Windows or WSL side of things.
 
 # Usage
 
@@ -69,11 +73,11 @@ httpserv [directory] [listen] [mappings...]
 
 # Known issues
 
-Because this is meant for local development and not production uses, there are
+Because this is meant for local development and not production use, there are
 some issues which I haven't bothered to fix. In general, the reason why boils
-down to httpserv being meant to aid local development. If you're using it for
-anything critical, you're doing it _very_ wrong and should get your hands on a
-webserver actually made to be used in production.
+down to httpserv being meant to aid local development. If you're using it in
+any situation where you can't restart it at will, you're doing it very, *very*
+wrong.
 
 - Requests with absurdly long URLs or absurd numbers of headers can cause the
   process to hang or crash
