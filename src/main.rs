@@ -1,19 +1,20 @@
 use std::{
     collections::HashMap,
-    env, fmt,
+    env,
+    ffi::OsString,
+    fmt,
     fs::File,
     io::{self, BufRead, BufReader, BufWriter, Lines, Read, Write as _},
     net,
-    path::{Path, PathBuf, Component},
+    path::{Component, Path, PathBuf},
     time::Instant,
-    ffi::OsString,
 };
 
-#[derive(Debug)]
 enum Failure {
     EarlyInputEnd,
     EarlyOutputEnd,
     InvalidFormat(String),
+    IOOpFailed(io::Error),
 }
 
 impl fmt::Display for Failure {
@@ -22,6 +23,7 @@ impl fmt::Display for Failure {
             Failure::EarlyInputEnd => write!(f, "input ended earlier than expected"),
             Failure::EarlyOutputEnd => write!(f, "output pipe broke while we had more to write"),
             Failure::InvalidFormat(s) => write!(f, "'{}' is incorrectly formatted", s),
+            Failure::IOOpFailed(e) => write!(f, "Failed to complete action because of {:?}", e),
         }
     }
 }
@@ -168,14 +170,14 @@ fn main() {
     let (dir, host, mappings) = match get_args() {
         Ok(t) => t,
         Err(msg) => {
-            println!("Invalid command: {:?}", msg);
+            println!("Invalid command: {}", msg);
             return;
         }
     };
     let listener = match net::TcpListener::bind(&host) {
         Ok(l) => l,
         Err(e) => {
-            eprintln!("Failed to listen on {}: {:?}", host, e);
+            eprintln!("Failed to listen on {}: {}", host, e);
             return;
         }
     };
@@ -198,23 +200,28 @@ fn main() {
         let url = match get_path(&mut input) {
             Ok(u) => u,
             Err(e) => {
-                println!("Failed to get path: {:?}", e);
+                println!("Failed to get path: {}", e);
                 continue;
             }
         };
         let filepath = dir.join(&url[1..]);
-        if filepath.components().any(|c| c == Component::ParentDir) {
+        if filepath
+            .strip_prefix(&dir)
+            .expect("Literally just joined and yet this failed?")
+            .components()
+            .any(|c| c == Component::ParentDir)
+        {
             // no legit reason to  use `..` in requests
             println!("Ignoring probably-malicious request");
             continue;
         }
         let filepath = if filepath.is_dir() {
             if !url.ends_with("/") {
-                let _r = write!(conn, concat!(
-                    "HTTP/1.1 301 Moved Permanently\n",
-                    "Location: {}/\n",
-                    "\n"
-                ), url);
+                let _r = write!(
+                    conn,
+                    concat!("HTTP/1.1 301 Moved Permanently\n", "Location: {}/\n", "\n"),
+                    url
+                );
                 continue;
             }
             filepath.join("index.html")
