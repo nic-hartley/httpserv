@@ -52,7 +52,7 @@ fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), Failure> {
     Ok((dir, host, mappings))
 }
 
-fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
+fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<PathBuf, Failure> {
     let first_line = input
         .next()
         .ok_or(Failure::EarlyInputEnd)?
@@ -65,7 +65,7 @@ fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
     let url_length = first_line[url_start..]
         .find(" ")
         .ok_or_else(|| Failure::InvalidFormat(first_line.clone()))?;
-    Ok(first_line[url_start..url_start + url_length].to_owned())
+    Ok(Path::new(&first_line[url_start..url_start + url_length]).to_path_buf())
 }
 
 enum Response {
@@ -77,11 +77,13 @@ enum Response {
     },
     NotFound,
     Error(String),
+    Ignore,
 }
 
 impl Response {
     fn code(&self) -> u16 {
         match self {
+            Response::Ignore => 0,
             Response::Ok { .. } => 200,
             Response::NotFound => 404,
             Response::Error(_) => 500,
@@ -89,7 +91,22 @@ impl Response {
     }
 }
 
-fn get_response(filepath: &Path, mappings: &HashMap<OsString, String>) -> Response {
+fn get_response(url: &Path, mappings: &HashMap<OsString, String>) -> Response {
+    if url.components().any(|c| c == Component::ParentDir) {
+        // no legit reason to  use `..` in requests
+        println!("Ignoring probably-malicious request");
+        continue;
+    }
+    let filepath = dir.join(&url);
+    let filepath = if filepath.is_dir() {
+        if !url.ends_with("/") {
+            let _r = write!(conn, "HTTP/1.1 301 Moved Permanently\nLocation: {:?}/\n\n", url);
+            continue;
+        }
+        filepath.join("index.html")
+    } else {
+        filepath
+    };
     // TODO: More robust extension checking + checking for match with Accept header
     let ext = match filepath.extension() {
         Some(e) => e.to_owned(),
@@ -120,6 +137,7 @@ fn get_response(filepath: &Path, mappings: &HashMap<OsString, String>) -> Respon
 fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
     let mut bufout = BufWriter::new(conn);
     match response {
+        Response::Ignore => (),
         Response::Ok {
             headers,
             body_type,
@@ -204,30 +222,6 @@ fn main() {
                 continue;
             }
         };
-        let filepath = dir.join(&url[1..]);
-        if filepath
-            .strip_prefix(&dir)
-            .expect("Literally just joined and yet this failed?")
-            .components()
-            .any(|c| c == Component::ParentDir)
-        {
-            // no legit reason to  use `..` in requests
-            println!("Ignoring probably-malicious request");
-            continue;
-        }
-        let filepath = if filepath.is_dir() {
-            if !url.ends_with("/") {
-                let _r = write!(
-                    conn,
-                    concat!("HTTP/1.1 301 Moved Permanently\n", "Location: {}/\n", "\n"),
-                    url
-                );
-                continue;
-            }
-            filepath.join("index.html")
-        } else {
-            filepath
-        };
         // let content_types;
         for line in input {
             let line = line.expect("failed to read from TCP");
@@ -236,7 +230,7 @@ fn main() {
             }
             // println!("Header: {}", line);
         }
-        let response = get_response(&filepath, &mappings);
+        let response = get_response(&url, &mappings);
         let code = response.code();
         if let Err(e) = write_response(conn, response) {
             println!("Failed to write to pipe: {:?}", e);
@@ -244,7 +238,7 @@ fn main() {
         }
         let resp_time = Instant::now().duration_since(resp_start);
         println!(
-            "Served {} with {} in {}ms",
+            "Served {:?} with {} in {}ms",
             url,
             code,
             resp_time.as_millis()
