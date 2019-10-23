@@ -11,27 +11,25 @@ use std::{
 };
 
 #[derive(Debug)]
-enum Failure {
+enum ReqFail {
     EarlyInputEnd,
-    EarlyOutputEnd,
     InvalidFormat(String),
     IOOpFailed(io::Error),
     Malicious(&'static str),
 }
 
-impl fmt::Display for Failure {
+impl fmt::Display for ReqFail {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Failure::EarlyInputEnd => write!(f, "input ended earlier than expected"),
-            Failure::EarlyOutputEnd => write!(f, "output pipe broke while we had more to write"),
-            Failure::InvalidFormat(s) => write!(f, "'{}' is incorrectly formatted", s),
-            Failure::IOOpFailed(e) => write!(f, "Failed to complete action because of {:?}", e),
-            Failure::Malicious(w) => write!(f, "Suspected maliocious request: {}", w),
+            ReqFail::EarlyInputEnd => write!(f, "input ended earlier than expected"),
+            ReqFail::InvalidFormat(s) => write!(f, "'{}' is incorrectly formatted", s),
+            ReqFail::IOOpFailed(e) => write!(f, "Failed to complete action because of {:?}", e),
+            ReqFail::Malicious(w) => write!(f, "Suspected maliocious request: {}", w),
         }
     }
 }
 
-fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), Failure> {
+fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), ReqFail> {
     let mut args = env::args().skip(1);
     let dir = Path::new(&args.next().unwrap_or(".".into())).to_path_buf();
     let host = args.next().unwrap_or("localhost:8080".into());
@@ -47,7 +45,7 @@ fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), Failure> {
     for pair in args {
         let eq_idx = pair
             .find("=")
-            .ok_or_else(|| Failure::InvalidFormat(pair.clone()))?;
+            .ok_or_else(|| ReqFail::InvalidFormat(pair.clone()))?;
         let (ext, mime) = pair.split_at(eq_idx);
         mappings.insert(ext.into(), mime.into());
     }
@@ -59,35 +57,35 @@ struct Request {
     path: String,
 }
 
-fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
+fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, ReqFail> {
     let first_line = input
         .next()
-        .ok_or(Failure::EarlyInputEnd)?
-        .or(Err(Failure::EarlyInputEnd))?;
+        .ok_or(ReqFail::EarlyInputEnd)?
+        .or(Err(ReqFail::EarlyInputEnd))?;
     // +1 because we actually care about the next character, not this one
     let mut url_start = first_line
         .find(" ")
-        .ok_or_else(|| Failure::InvalidFormat(first_line.clone()))?
+        .ok_or_else(|| ReqFail::InvalidFormat(first_line.clone()))?
         + 1;
     if first_line.chars().nth(url_start) == Some('/') {
         url_start += 1;
     }
     let url_length = first_line[url_start..]
         .find(" ")
-        .ok_or_else(|| Failure::InvalidFormat(first_line.clone()))?;
+        .ok_or_else(|| ReqFail::InvalidFormat(first_line.clone()))?;
     let url = &first_line[url_start..url_start + url_length];
     let url_path = Path::new(&url);
     if url_path.components().any(|c| c == Component::ParentDir) {
-        return Err(Failure::Malicious(".. component in path"));
+        return Err(ReqFail::Malicious(".. component in path"));
     }
     Ok(url.to_owned())
 }
 
-fn get_request<B: BufRead>(input: &mut Lines<B>) -> Result<Request, Failure> {
+fn get_request<B: BufRead>(input: &mut Lines<B>) -> Result<Request, ReqFail> {
     let path = get_path(input)?;
     // let content_types;
     for line in input {
-        let line = line.expect("failed to read from TCP");
+        let line = line.map_err(ReqFail::IOOpFailed)?;
         if line == "" {
             break;
         }
@@ -148,9 +146,10 @@ fn get_response(dir: &Path, req: Request, mappings: &HashMap<OsString, String>) 
             o => return Response::Error(format!("{:?}", o)),
         },
     };
-    let metadata = doc
-        .metadata()
-        .expect("failed to read metadata for real file");
+    let metadata = match doc.metadata() {
+        Ok(m) => m,
+        Err(e) => return Response::Error(format!("Failed to read metadata: {}", e)),
+    };
     Response::Ok {
         headers: vec![],
         body_type: mapped_type,
