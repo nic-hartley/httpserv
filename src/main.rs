@@ -10,11 +10,13 @@ use std::{
     time::Instant,
 };
 
+#[derive(Debug)]
 enum Failure {
     EarlyInputEnd,
     EarlyOutputEnd,
     InvalidFormat(String),
     IOOpFailed(io::Error),
+    Malicious(&'static str),
 }
 
 impl fmt::Display for Failure {
@@ -24,6 +26,7 @@ impl fmt::Display for Failure {
             Failure::EarlyOutputEnd => write!(f, "output pipe broke while we had more to write"),
             Failure::InvalidFormat(s) => write!(f, "'{}' is incorrectly formatted", s),
             Failure::IOOpFailed(e) => write!(f, "Failed to complete action because of {:?}", e),
+            Failure::Malicious(w) => write!(f, "Suspected maliocious request: {}", w),
         }
     }
 }
@@ -52,56 +55,63 @@ fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), Failure> {
     Ok((dir, host, mappings))
 }
 
-fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<PathBuf, Failure> {
+fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
     let first_line = input
         .next()
         .ok_or(Failure::EarlyInputEnd)?
         .or(Err(Failure::EarlyInputEnd))?;
     // +1 because we actually care about the next character, not this one
-    let url_start = first_line
+    let mut url_start = first_line
         .find(" ")
         .ok_or_else(|| Failure::InvalidFormat(first_line.clone()))?
         + 1;
+    if first_line.chars().nth(url_start) == Some('/') {
+        url_start += 1;
+    }
     let url_length = first_line[url_start..]
         .find(" ")
         .ok_or_else(|| Failure::InvalidFormat(first_line.clone()))?;
-    Ok(Path::new(&first_line[url_start..url_start + url_length]).to_path_buf())
+    let url = &first_line[url_start..url_start + url_length];
+    let url_path = Path::new(&url);
+    if url_path.components().any(|c| c == Component::ParentDir) {
+        return Err(Failure::Malicious(".. component in path"));
+    }
+    Ok(url.to_owned())
 }
 
+#[derive(Debug)]
 enum Response {
     Ok {
         headers: Vec<(String, String)>,
         body_type: String,
-        body_len: u64,
-        body: Box<dyn Read>, // TODO replace with concrete type?
+        body_len: usize,
+        body: File, // TODO replace with concrete type?
     },
     NotFound,
     Error(String),
     Ignore,
+    Moved(String),
 }
 
 impl Response {
     fn code(&self) -> u16 {
         match self {
-            Response::Ignore => 0,
             Response::Ok { .. } => 200,
             Response::NotFound => 404,
             Response::Error(_) => 500,
+            Response::Ignore => 0,
+            Response::Moved(_) => 301,
         }
     }
 }
 
-fn get_response(url: &Path, mappings: &HashMap<OsString, String>) -> Response {
-    if url.components().any(|c| c == Component::ParentDir) {
-        // no legit reason to  use `..` in requests
-        println!("Ignoring probably-malicious request");
-        continue;
-    }
+fn get_response(dir: &Path, mut url: String, mappings: &HashMap<OsString, String>) -> Response {
     let filepath = dir.join(&url);
     let filepath = if filepath.is_dir() {
-        if !url.ends_with("/") {
-            let _r = write!(conn, "HTTP/1.1 301 Moved Permanently\nLocation: {:?}/\n\n", url);
-            continue;
+        // enforce trailing / (except if request is for root)
+        if url.len() > 0 && !url.ends_with("/") {
+            url.push('/');
+            return Response::Moved(url);
         }
         filepath.join("index.html")
     } else {
@@ -129,13 +139,26 @@ fn get_response(url: &Path, mappings: &HashMap<OsString, String>) -> Response {
     Response::Ok {
         headers: vec![],
         body_type: mapped_type,
-        body_len: metadata.len(),
-        body: Box::new(doc),
+        body_len: metadata.len() as usize,
+        body: doc,
     }
 }
 
 fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
     let mut bufout = BufWriter::new(conn);
+    let mut head = |code, ctype, len| write!(
+        bufout,
+        concat!(
+            "HTTP/1.1 {code}\n",
+            "Cache-Control: no-cache\n",
+            "Connection: close\n",
+            "Content-Type: {type}; charset=UTF-8\n",
+            "Content-Length: {len}\n",
+        ),
+        code = code,
+        type = ctype,
+        len = len,
+    );
     match response {
         Response::Ignore => (),
         Response::Ok {
@@ -144,10 +167,7 @@ fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
             body_len,
             mut body,
         } => {
-            write!(bufout, "HTTP/1.1 200 OK\n")?;
-            write!(bufout, "Content-Type: {}\n", body_type)?;
-            write!(bufout, "Content-Length: {}\n", body_len)?;
-            write!(bufout, "Connection: close\n",)?;
+            head("200 OK", &body_type[..], body_len)?;
             for (name, val) in headers {
                 write!(bufout, "{}: {}\n", name, val)?;
             }
@@ -155,29 +175,17 @@ fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
             io::copy(&mut body, &mut bufout)?;
         }
         Response::NotFound => {
-            write!(
-                bufout,
-                concat!(
-                    "HTTP/1.1 404 Not Found\n",
-                    "Content-Length: 0\n",
-                    "Connection: close\n",
-                    "\n"
-                )
-            )?;
+            head("404 Not Found", "text/plain", 0)?;
+            write!(bufout, "\n")?;
         }
         Response::Error(msg) => {
-            write!(
-                bufout,
-                concat!(
-                    "HTTP/1.1 404 Not Found\n",
-                    "Content-Length: {len}\n",
-                    "Connection: close\n",
-                    "\n",
-                    "{msg}"
-                ),
-                len = msg.len(),
-                msg = msg
-            )?;
+            head("500 Internal Server Error", "text/plain", msg.len())?;
+            write!(bufout, "\n{msg}", msg = msg)?;
+        }
+        Response::Ignore => (),
+        Response::Moved(to) => {
+            head("301 Moved Permanently", "text/plain", 0)?;
+            write!(bufout, "Location: {to}\n\n", to = to)?;
         }
     };
     Ok(())
@@ -222,6 +230,7 @@ fn main() {
                 continue;
             }
         };
+        print!("Served /{} ", url);
         // let content_types;
         for line in input {
             let line = line.expect("failed to read from TCP");
@@ -230,18 +239,13 @@ fn main() {
             }
             // println!("Header: {}", line);
         }
-        let response = get_response(&url, &mappings);
-        let code = response.code();
+        let response = get_response(&dir, url, &mappings);
+        print!("with {} ", response.code());
         if let Err(e) = write_response(conn, response) {
             println!("Failed to write to pipe: {:?}", e);
             continue;
         }
         let resp_time = Instant::now().duration_since(resp_start);
-        println!(
-            "Served {:?} with {} in {}ms",
-            url,
-            code,
-            resp_time.as_millis()
-        );
+        println!("in {}ms.", resp_time.as_millis());
     }
 }
