@@ -4,7 +4,7 @@ use std::{
     ffi::OsString,
     fmt,
     fs::File,
-    io::{self, BufRead, BufReader, BufWriter, Lines, Read, Write as _},
+    io::{self, BufRead, BufReader, BufWriter, Lines, Write as _},
     net,
     path::{Component, Path, PathBuf},
     time::Instant,
@@ -55,6 +55,10 @@ fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), Failure> {
     Ok((dir, host, mappings))
 }
 
+struct Request {
+    path: String,
+}
+
 fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
     let first_line = input
         .next()
@@ -79,6 +83,20 @@ fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, Failure> {
     Ok(url.to_owned())
 }
 
+fn get_request<B: BufRead>(input: &mut Lines<B>) -> Result<Request, Failure> {
+    let path = get_path(input)?;
+    // let content_types;
+    for line in input {
+        let line = line.expect("failed to read from TCP");
+        if line == "" {
+            break;
+        }
+        // println!("Header: {}", line);
+    }
+
+    Ok(Request { path })
+}
+
 #[derive(Debug)]
 enum Response {
     Ok {
@@ -89,7 +107,6 @@ enum Response {
     },
     NotFound,
     Error(String),
-    Ignore,
     Moved(String),
 }
 
@@ -99,7 +116,6 @@ impl Response {
             Response::Ok { .. } => 200,
             Response::NotFound => 404,
             Response::Error(_) => 500,
-            Response::Ignore => 0,
             Response::Moved(_) => 301,
         }
     }
@@ -160,7 +176,6 @@ fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
         len = len,
     );
     match response {
-        Response::Ignore => (),
         Response::Ok {
             headers,
             body_type,
@@ -182,7 +197,6 @@ fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
             head("500 Internal Server Error", "text/plain", msg.len())?;
             write!(bufout, "\n{msg}", msg = msg)?;
         }
-        Response::Ignore => (),
         Response::Moved(to) => {
             head("301 Moved Permanently", "text/plain", 0)?;
             write!(bufout, "Location: {to}\n\n", to = to)?;
@@ -223,23 +237,15 @@ fn main() {
         };
         // TODO: Read through request to get url + headers
         let mut input = BufReader::new(&mut conn).lines();
-        let url = match get_path(&mut input) {
+        let request = match get_request(&mut input) {
             Ok(u) => u,
             Err(e) => {
                 println!("Failed to get path: {}", e);
                 continue;
             }
         };
-        print!("Served /{} ", url);
-        // let content_types;
-        for line in input {
-            let line = line.expect("failed to read from TCP");
-            if line == "" {
-                break;
-            }
-            // println!("Header: {}", line);
-        }
-        let response = get_response(&dir, url, &mappings);
+        print!("Served /{} ", request.path);
+        let response = get_response(&dir, request.path, &mappings);
         print!("with {} ", response.code());
         if let Err(e) = write_response(conn, response) {
             println!("Failed to write to pipe: {:?}", e);
