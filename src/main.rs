@@ -121,13 +121,12 @@ impl Response {
     }
 }
 
-fn get_response(dir: &Path, mut url: String, mappings: &HashMap<OsString, String>) -> Response {
-    let filepath = dir.join(&url);
+fn get_response(dir: &Path, req: Request, mappings: &HashMap<OsString, String>) -> Response {
+    let filepath = dir.join(&req.path);
     let filepath = if filepath.is_dir() {
         // enforce trailing / (except if request is for root)
-        if url.len() > 0 && !url.ends_with("/") {
-            url.push('/');
-            return Response::Moved(url);
+        if req.path.len() > 0 && !req.path.ends_with("/") {
+            return Response::Moved(format!("{}/", req.path));
         }
         filepath.join("index.html")
     } else {
@@ -245,7 +244,7 @@ fn main() {
             }
         };
         print!("Served /{} ", request.path);
-        let response = get_response(&dir, request.path, &mappings);
+        let response = get_response(&dir, request, &mappings);
         print!("with {} ", response.code());
         if let Err(e) = write_response(conn, response) {
             println!("Failed to write to pipe: {:?}", e);
