@@ -17,27 +17,27 @@ and quick to respond
 
 Planned tasks in no particular order include:
 
-- General code cleanup
-- Ensure the `..` block works as expected with other browsers
-- Better error handling, so errors are less likely to crash the entire program
-- Supporting percent-encoding in URLs
-- Testing of any kind (probably integration tests)
-- More easily customizable mappings, to support extensions with `.`s in them
-- Multithreading, maybe feature-gated, useful for serving lots of little files
-- Respecting `Accept` headers
-- Support for `Content-Encoding`, especially `gzip` (for pre-`gzip`'d files)
-- Feature-gated TLS support, useful for testing sites that make requests to
+- [x] General code cleanup
+- [ ] Ensure the `..` block works as expected with other browsers
+- [ ] Better error handling, so errors are less likely to crash the entire program
+- [ ] Supporting percent-encoding in URLs
+- [ ] Testing of any kind (probably integration tests)
+- [ ] More easily customizable mappings, to support extensions with `.`s in them
+- [ ] Multithreading, maybe feature-gated, useful for serving lots of little files
+- [ ] Respecting `Accept` headers
+- [ ] Support for `Content-Encoding`, especially `gzip` (for pre-`gzip`'d files)
+- [ ] Feature-gated TLS support, useful for testing sites that make requests to
   HTTPS sites
-- Feature-gated advanced option parsing with getopts or clap, for more typical
+- [ ] Feature-gated advanced option parsing with getopts or clap, for more typical
   command syntax
-- Feature-gated Markdown parsing
+- [ ] Feature-gated Markdown parsing
 
 Planned non-features include:
 
 - Any dependencies by default (behind a feature gate is fine)
 - Maximizing response speed where it would cost ease of use or setup speed
 - Anything that gives httpserv a noticeable delay
-- Intentional suitability for any production use cases
+- Anything targeted at better production suitability
 
 # Install
 
