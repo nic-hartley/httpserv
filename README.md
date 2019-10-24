@@ -19,16 +19,16 @@ Planned tasks in no particular order include:
 
 - [x] General code cleanup
 - [ ] Ensure the `..` block works as expected with other browsers
-- [ ] Better error handling, so errors are less likely to crash the entire program
+- [ ] Better error handling, so errors are less likely to crash httpserv
 - [ ] Supporting percent-encoding in URLs
 - [ ] Testing of any kind (probably integration tests)
-- [ ] More easily customizable mappings, to support extensions with `.`s in them
-- [ ] Multithreading, maybe feature-gated, useful for serving lots of little files
+- [ ] More easily customizable mappings, to support extensions with `.`s in
+- [ ] Multithreading, maybe feature-gated, prevents one request from blocking
 - [ ] Respecting `Accept` headers
-- [ ] Support for `Content-Encoding`, especially `gzip` (for pre-`gzip`'d files)
+- [ ] Support for `Content-Encoding`, especially `gzip` (for pre-zipped files)
 - [ ] Feature-gated TLS support, useful for testing sites that make requests to
   HTTPS sites
-- [ ] Feature-gated advanced option parsing with getopts or clap, for more typical
+- [ ] Feature-gated advanced option parsing with getopts or clap, for more sane
   command syntax
 - [ ] Feature-gated Markdown parsing
 
