@@ -15,12 +15,12 @@ is:
 Because of its simplicity, it's incredibly quick to install, quick to start,
 and quick to respond
 
-Planned tasks in no particular order include:
+Planned tasks in rough chronological order include:
 
 - [x] General code cleanup
 - [x] Ensure the `..` block works as expected with other browsers
 - [x] Better error handling, so errors are less likely to crash httpserv
-- [ ] Supporting percent-encoding in URLs
+- [ ] Supporting anchors, querystrings, and percent-encoding in URLs
 - [ ] Testing of any kind (probably integration tests)
 - [ ] More easily customizable mappings, to support extensions with `.`s in
 - [ ] Multithreading, maybe feature-gated, prevents one request from blocking
@@ -49,8 +49,8 @@ That's it. Assuming the Cargo bin directory is on your path, you can now call
 `httpserv` from your command line. For directions on installing Cargo, please
 see [here](https://rustup.rs/).
 
-On WSL, you may need to call `httpserv.exe` instead, depending on if you've
-got Rust installed on the Windows or WSL side of things.
+On WSL, you may need to call `cargo.exe` and `httpserv.exe` instead, depending
+on if you've got Rust installed on the Windows or WSL side of things.
 
 ## Usage
 
@@ -67,7 +67,8 @@ httpserv [directory] [listen] [mappings...]
   `SocketAddr`. Defaults to `localhost:8080`
 - `mappings...`: Any additional mappings from [file extension][ext] to MIME
   types, besides the defaults. Anything specified here which matches the same
-  extension as a default will override the default MIME type.
+  extension as a default will override the default MIME type. The format is
+  `extension=MIME`, with no leading `.` on the extension.
 
  [ext]: https://doc.rust-lang.org/std/path/struct.Path.html#method.extension
 
