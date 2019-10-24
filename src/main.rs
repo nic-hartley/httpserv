@@ -21,10 +21,18 @@ enum ReqFail {
 impl fmt::Display for ReqFail {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ReqFail::EarlyInputEnd => write!(f, "input ended earlier than expected"),
-            ReqFail::InvalidFormat(s) => write!(f, "'{}' is incorrectly formatted", s),
-            ReqFail::IOOpFailed(e) => write!(f, "Failed to complete action because of {:?}", e),
-            ReqFail::Malicious(w) => write!(f, "Suspected maliocious request: {}", w),
+            ReqFail::EarlyInputEnd => {
+                write!(f, "input ended earlier than expected")
+            }
+            ReqFail::InvalidFormat(s) => {
+                write!(f, "'{}' is incorrectly formatted", s)
+            }
+            ReqFail::IOOpFailed(e) => {
+                write!(f, "Failed to complete action because of {:?}", e)
+            }
+            ReqFail::Malicious(w) => {
+                write!(f, "Suspected maliocious request: {}", w)
+            }
         }
     }
 }
@@ -119,7 +127,11 @@ impl Response {
     }
 }
 
-fn get_response(dir: &Path, req: Request, mappings: &HashMap<OsString, String>) -> Response {
+fn get_response(
+    dir: &Path,
+    req: Request,
+    mappings: &HashMap<OsString, String>,
+) -> Response {
     let filepath = dir.join(&req.path);
     let filepath = if filepath.is_dir() {
         // enforce trailing / (except if request is for root)
@@ -148,7 +160,9 @@ fn get_response(dir: &Path, req: Request, mappings: &HashMap<OsString, String>) 
     };
     let metadata = match doc.metadata() {
         Ok(m) => m,
-        Err(e) => return Response::Error(format!("Failed to read metadata: {}", e)),
+        Err(e) => {
+            return Response::Error(format!("Failed to read metadata: {}", e))
+        }
     };
     Response::Ok {
         headers: vec![],
@@ -160,19 +174,21 @@ fn get_response(dir: &Path, req: Request, mappings: &HashMap<OsString, String>) 
 
 fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
     let mut bufout = BufWriter::new(conn);
-    let mut head = |code, ctype, len| write!(
-        bufout,
-        concat!(
-            "HTTP/1.1 {code}\n",
-            "Cache-Control: no-cache\n",
-            "Connection: close\n",
-            "Content-Type: {type}; charset=UTF-8\n",
-            "Content-Length: {len}\n",
-        ),
-        code = code,
-        type = ctype,
-        len = len,
-    );
+    let mut head = |code, ctype, len| {
+        write!(
+            bufout,
+            concat!(
+                "HTTP/1.1 {code}\n",
+                "Cache-Control: no-cache\n",
+                "Connection: close\n",
+                "Content-Type: {type}; charset=UTF-8\n",
+                "Content-Length: {len}\n",
+            ),
+            code = code,
+            type = ctype,
+            len = len,
+        )
+    };
     match response {
         Response::Ok {
             headers,

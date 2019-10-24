@@ -39,9 +39,9 @@ Planned non-features include:
 - Anything that gives httpserv a noticeable delay
 - Anything targeted at better production suitability
 
-# Install
+## Install
 
-```
+```sh
 cargo install httpserv
 ```
 
@@ -52,26 +52,26 @@ see [here](https://rustup.rs/).
 On WSL, you may need to call `httpserv.exe` instead, depending on if you've
 got Rust installed on the Windows or WSL side of things.
 
-# Usage
+## Usage
 
 All arguments are optional -- if you want to serve your current directory on
 `localhost:8080` with the default mappings, you can just type `httpserv` and
 hit enter. Otherwise:
 
-```
+```sh
 httpserv [directory] [listen] [mappings...]
 ```
 
-* `directory`: Where to look for files to serve. Defaults to `.`
-* `listen`: The host/port to listen on, as expected by the `FromStr` impl for
+- `directory`: Where to look for files to serve. Defaults to `.`
+- `listen`: The host/port to listen on, as expected by the `FromStr` impl for
   `SocketAddr`. Defaults to `localhost:8080`
-* `mappings...`: Any additional mappings from [file extension][ext] to MIME
+- `mappings...`: Any additional mappings from [file extension][ext] to MIME
   types, besides the defaults. Anything specified here which matches the same
   extension as a default will override the default MIME type.
 
  [ext]: https://doc.rust-lang.org/std/path/struct.Path.html#method.extension
 
-# Known issues
+## Known issues
 
 Because this is meant for local development and not production use, there are
 some issues which I haven't bothered to fix. In general, the reason why boils
