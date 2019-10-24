@@ -263,8 +263,8 @@ fn main() {
 
   let load_time = Instant::now().duration_since(load_start);
   println!(
-    "Launched in {}ms; listening on {}; serving from {}",
-    load_time.as_millis(),
+    "Launched in {}us; listening on {}; serving from {}",
+    load_time.as_micros(),
     cfg.hostname,
     cfg.root.display()
   );
@@ -296,6 +296,6 @@ fn main() {
     }
 
     let resp_time = Instant::now().duration_since(resp_start);
-    println!("in {}ms.", resp_time.as_millis());
+    println!("in {}us.", resp_time.as_micros());
   }
 }
