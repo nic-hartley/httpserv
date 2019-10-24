@@ -10,6 +10,14 @@ use std::{
   time::Instant,
 };
 
+#[derive(Debug)]
+struct Config {
+  root: PathBuf,
+  hostname: String,
+  mappings: HashMap<OsString, String>,
+}
+
+#[derive(Debug)]
 enum ArgFail {
   InvalidFormat(String),
 }
@@ -24,10 +32,10 @@ impl fmt::Display for ArgFail {
   }
 }
 
-fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), ArgFail> {
+fn get_args() -> Result<Config, ArgFail> {
   let mut args = env::args().skip(1);
-  let dir = Path::new(&args.next().unwrap_or(".".into())).to_path_buf();
-  let host = args.next().unwrap_or("localhost:8080".into());
+  let root = Path::new(&args.next().unwrap_or(".".into())).to_path_buf();
+  let hostname = args.next().unwrap_or("localhost:8080".into());
   let mut mappings = HashMap::new();
   mappings.insert("html".into(), "text/html".into());
   mappings.insert("css".into(), "text/css".into());
@@ -45,11 +53,11 @@ fn get_args() -> Result<(PathBuf, String, HashMap<OsString, String>), ArgFail> {
     mappings.insert(ext.into(), mime.into());
   }
 
-  Ok((dir, host, mappings))
-}
-
-struct Request {
-  path: String,
+  Ok(Config {
+    root,
+    hostname,
+    mappings,
+  })
 }
 
 #[derive(Debug)]
@@ -99,8 +107,14 @@ fn get_path<B: BufRead>(input: &mut Lines<B>) -> Result<String, ReqFail> {
   Ok(url.to_owned())
 }
 
-fn get_request<B: BufRead>(input: &mut Lines<B>) -> Result<Request, ReqFail> {
-  let path = get_path(input)?;
+struct Request {
+  path: String,
+}
+
+fn get_request(conn: &mut net::TcpStream) -> Result<Request, ReqFail> {
+  let mut input = BufReader::new(conn).lines();
+  let path = get_path(&mut input)?;
+  // TODO: Read through request to get url + headers
   // let content_types;
   for line in input {
     let line = line.map_err(ReqFail::IOOpFailed)?;
@@ -137,12 +151,8 @@ impl Response {
   }
 }
 
-fn get_response(
-  dir: &Path,
-  req: Request,
-  mappings: &HashMap<OsString, String>,
-) -> Response {
-  let filepath = dir.join(&req.path);
+fn get_response(req: Request, cfg: &Config) -> Response {
+  let filepath = cfg.root.join(&req.path);
   let filepath = if filepath.is_dir() {
     // enforce trailing / (except if request is for root)
     if req.path.len() > 0 && !req.path.ends_with("/") {
@@ -157,7 +167,7 @@ fn get_response(
     Some(e) => e.to_owned(),
     None => "".into(),
   };
-  let mapped_type = match mappings.get(&ext) {
+  let mapped_type = match cfg.mappings.get(&ext) {
     Some(t) => t.clone(),
     None => "text/plain".into(),
   };
@@ -231,37 +241,41 @@ fn write_response(conn: net::TcpStream, response: Response) -> io::Result<()> {
 
 fn main() {
   let load_start = Instant::now();
-  let (dir, host, mappings) = match get_args() {
+
+  let cfg = match get_args() {
     Ok(t) => t,
     Err(msg) => {
       println!("Invalid command: {}", msg);
       return;
     }
   };
-  let listener = match net::TcpListener::bind(&host) {
+
+  let listener = match net::TcpListener::bind(&cfg.hostname) {
     Ok(l) => l,
     Err(e) => {
-      eprintln!("Failed to listen on {}: {}", host, e);
+      eprintln!("Failed to listen on {}: {}", cfg.hostname, e);
       return;
     }
   };
+
   let load_time = Instant::now().duration_since(load_start);
   println!(
     "Launched in {}ms; listening on {}; serving from {}",
     load_time.as_millis(),
-    host,
-    dir.display()
+    cfg.hostname,
+    cfg.root.display()
   );
+
   for conn in listener.incoming() {
     let resp_start = Instant::now();
+
     // just ignore failed connections
     let mut conn = match conn {
       Ok(s) => s,
       Err(_) => continue,
     };
-    // TODO: Read through request to get url + headers
-    let mut input = BufReader::new(&mut conn).lines();
-    let request = match get_request(&mut input) {
+
+    let request = match get_request(&mut conn) {
       Ok(u) => u,
       Err(e) => {
         println!("Failed to get path: {}", e);
@@ -269,12 +283,15 @@ fn main() {
       }
     };
     print!("Served /{} ", request.path);
-    let response = get_response(&dir, request, &mappings);
+
+    let response = get_response(request, &cfg);
     print!("with {} ", response.code());
+
     if let Err(e) = write_response(conn, response) {
       println!("Failed to write to pipe: {:?}", e);
       continue;
     }
+
     let resp_time = Instant::now().duration_since(resp_start);
     println!("in {}ms.", resp_time.as_millis());
   }
