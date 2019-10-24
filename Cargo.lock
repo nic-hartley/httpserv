@@ -2,5 +2,5 @@
 # It is not intended for manual editing.
 [[package]]
 name = "httpserv"
-version = "0.5.3"
+version = "0.5.4"
 
