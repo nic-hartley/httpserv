@@ -20,7 +20,7 @@ Planned tasks in rough chronological order include:
 - [x] General code cleanup
 - [x] Ensure the `..` block works as expected with other browsers
 - [x] Better error handling, so errors are less likely to crash httpserv
-- [ ] Supporting anchors, querystrings, and percent-encoding in URLs
+- [x] Supporting anchors, querystrings, and percent-encoding in URLs
 - [ ] Testing of any kind (probably integration tests)
 - [ ] More easily customizable mappings, to support extensions with `.`s in
 - [ ] Multithreading, maybe feature-gated, prevents one request from blocking

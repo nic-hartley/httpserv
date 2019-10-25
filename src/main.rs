@@ -114,7 +114,8 @@ impl Request {
       if url_path.components().any(|c| c == Component::ParentDir) {
         return Err(ReqFail::Malicious(".. component in path"));
       }
-      url.to_owned()
+      let end = url.find('?').or_else(|| url.find('#')).unwrap_or_else(|| url.len());
+      url[..end].to_owned()
     };
     // TODO: Read through request to get url + headers
     // let content_types;
