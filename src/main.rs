@@ -159,7 +159,7 @@ impl Response {
     let filepath = if filepath.is_dir() {
       // enforce trailing / (except if request is for root)
       if req.path.len() > 0 && !req.path.ends_with("/") {
-        return Response::Moved(format!("{}/", req.path));
+        return Response::Moved(format!("/{}/", req.path));
       }
       filepath.join("index.html")
     } else {
