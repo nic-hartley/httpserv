@@ -188,3 +188,39 @@ impl Response {
     Ok(())
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::*;
+
+  mod request {
+    use super::*;
+
+    // TODO: How to mock TcpStream?
+    // to test:
+    //  - correct URL extracted from first line
+    //  - malicious URLs rejected
+  }
+
+  mod result {
+    use super::*;
+
+    // TODO: How to mock filesystem?
+    // to test:
+    //  - if directory but no trailing /, Moved("{}/")
+    //  - if directory otherwise, loads index.html
+    //  - correct file loaded based on path
+    //  - correct content-type based on extension
+    //  - NotFound for nonexistent files
+  }
+
+  mod write {
+    use super::*;
+
+    // TODO: How to mock TcpStream?
+    // to test:
+    //  - response format is correct
+    //  - .code() matches output code
+    //  - all required headers are outputted
+  }
+}
