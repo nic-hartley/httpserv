@@ -15,22 +15,7 @@ is:
 Because of its simplicity, it's incredibly quick to install, quick to start,
 and quick to respond
 
-Planned tasks in rough chronological order include:
-
-- [x] General code cleanup
-- [x] Ensure the `..` block works as expected with other browsers
-- [x] Better error handling, so errors are less likely to crash httpserv
-- [x] Supporting anchors, querystrings, and percent-encoding in URLs
-- [ ] Testing of any kind (probably integration tests)
-- [ ] More easily customizable mappings, to support extensions with `.`s in
-- [ ] Multithreading, maybe feature-gated, prevents one request from blocking
-- [ ] Respecting `Accept` headers
-- [ ] Support for `Content-Encoding`, especially `gzip` (for pre-zipped files)
-- [ ] Feature-gated TLS support, useful for testing sites that make requests to
-  HTTPS sites
-- [ ] Feature-gated advanced option parsing with getopts or clap, for more sane
-  command syntax
-- [ ] Feature-gated Markdown parsing
+Planned tasks can be seen [in the issues][gh-issues]
 
 Planned non-features include:
 
@@ -38,6 +23,8 @@ Planned non-features include:
 - Maximizing response speed where it would cost ease of use or setup speed
 - Anything that gives httpserv a noticeable delay
 - Anything targeted at better production suitability
+
+ [gh-issues]: https://github.com/nic-hartley/httpserv/issues
 
 ## Install
 
@@ -47,10 +34,12 @@ cargo install httpserv
 
 That's it. Assuming the Cargo bin directory is on your path, you can now call
 `httpserv` from your command line. For directions on installing Cargo, please
-see [here](https://rustup.rs/).
+see [rustup.rs].
 
 On WSL, you may need to call `cargo.exe` and `httpserv.exe` instead, depending
 on if you've got Rust installed on the Windows or WSL side of things.
+
+ [rustup.rs]: https://rustup.rs/
 
 ## Usage
 
