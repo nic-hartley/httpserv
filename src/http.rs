@@ -1,8 +1,8 @@
 use std::{
   fmt,
-  net,
   fs::File,
   io::{self, BufRead, BufReader, BufWriter, Write as _},
+  net,
   path::{Component, Path},
 };
 
@@ -60,7 +60,10 @@ impl Request {
       if url_path.components().any(|c| c == Component::ParentDir) {
         return Err(ReqFail::Malicious(".. component in path"));
       }
-      let end = url.find('?').or_else(|| url.find('#')).unwrap_or_else(|| url.len());
+      let end = url
+        .find('?')
+        .or_else(|| url.find('#'))
+        .unwrap_or_else(|| url.len());
       url[..end].to_owned()
     };
     // TODO: Read through request to get url + headers
@@ -86,7 +89,6 @@ pub enum Response {
     body: File, // TODO replace with concrete type?
   },
   NotFound,
-  Error(String),
   Moved(String),
 }
 
@@ -95,17 +97,16 @@ impl Response {
     match self {
       Response::Ok { .. } => 200,
       Response::NotFound => 404,
-      Response::Error(_) => 500,
       Response::Moved(_) => 301,
     }
   }
 
-  pub fn to(req: Request, cfg: &cfg::Config) -> Response {
+  pub fn to(req: Request, cfg: &cfg::Config) -> io::Result<Response> {
     let filepath = cfg.root.join(&req.path);
     let filepath = if filepath.is_dir() {
       // enforce trailing / (except if request is for root)
       if req.path.len() > 0 && !req.path.ends_with("/") {
-        return Response::Moved(format!("/{}/", req.path));
+        return Ok(Response::Moved(format!("/{}/", req.path)));
       }
       filepath.join("index.html")
     } else {
@@ -123,22 +124,17 @@ impl Response {
     let doc = match File::open(filepath) {
       Ok(d) => d,
       Err(e) => match e.kind() {
-        io::ErrorKind::NotFound => return Response::NotFound,
-        o => return Response::Error(format!("{:?}", o)),
+        io::ErrorKind::NotFound => return Ok(Response::NotFound),
+        _ => return Err(e),
       },
     };
-    let metadata = match doc.metadata() {
-      Ok(m) => m,
-      Err(e) => {
-        return Response::Error(format!("Failed to read metadata: {}", e))
-      }
-    };
-    Response::Ok {
+    let metadata = doc.metadata()?;
+    Ok(Response::Ok {
       headers: vec![],
       body_type: mapped_type,
       body_len: metadata.len() as usize,
       body: doc,
-    }
+    })
   }
 
   pub fn write(self, conn: net::TcpStream) -> io::Result<()> {
@@ -175,10 +171,6 @@ impl Response {
       Response::NotFound => {
         head("404 Not Found", "text/plain", 0)?;
         write!(bufout, "\n")?;
-      }
-      Response::Error(msg) => {
-        head("500 Internal Server Error", "text/plain", msg.len())?;
-        write!(bufout, "\n{msg}", msg = msg)?;
       }
       Response::Moved(to) => {
         head("301 Moved Permanently", "text/plain", 0)?;
