@@ -1,7 +1,7 @@
 use std::{
   thread::spawn,
   collections::HashMap,
-  net::{TcpStream, ToSocketAddrs},
+  net::TcpStream,
   sync::Once,
 };
 
@@ -10,12 +10,12 @@ use httpserv::*;
 
 static SETUP: Once = Once::new();
 
-fn setup_httpserv(host_at: &'static str) {
-  SETUP.call_once(move || {
-    spawn(move || {
+fn setup_httpserv() {
+  SETUP.call_once(|| {
+    spawn(|| {
       Httpserv::new(Config {
         root: "./tests/webroot".into(),
-        hostname: host_at.into(),
+        hostname: "localhost:18203".into(),
         mappings: HashMap::new(),
         log: false,
       }).expect("Failed to start httpserv").run();
@@ -23,10 +23,10 @@ fn setup_httpserv(host_at: &'static str) {
   });
 }
 
-fn request<A: ToSocketAddrs>(to: A, url: &str) -> String {
+fn request(url: &str) -> String {
   use std::io::{Read, Write};
 
-  let mut stream = TcpStream::connect(to).expect("failed to connect");
+  let mut stream = TcpStream::connect("localhost:18203").expect("failed to connect");
   // When we need to send headers, maybe just trim off that last \n?
   // then the caller can send it on its own when ready
   write!(stream, "GET {} HTTP/1.1\n\n", url).expect("failed to write");
@@ -62,17 +62,16 @@ fn strip_headers(mut resp: String, ctype: &str, len: usize) -> (String, String) 
 
 #[test]
 fn test_404() {
-  setup_httpserv("localhost:8080");
-  let response = request("localhost:8080", "/nonexistent_asdkjakdjd");
+  setup_httpserv();
+  let response = request("/nonexistent_asdkjakdjd");
   let (first, _) = strip_headers(response, "text/plain", 0);
   assert_eq!(first, "HTTP/1.1 404 Not Found", "wrong status reply");
 }
 
 #[test]
 fn test_index() {
-  println!("{:?}", std::env::current_dir());
-  setup_httpserv("localhost:8080");
-  let response = request("localhost:8080", "/");
+  setup_httpserv();
+  let response = request("/");
   let (first, body) = strip_headers(response, "text/plain", 2);
   assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
   assert_eq!(body, "1\n", "wrong body");
@@ -80,9 +79,8 @@ fn test_index() {
 
 #[test]
 fn test_file() {
-  println!("{:?}", std::env::current_dir());
-  setup_httpserv("localhost:8080");
-  let response = request("localhost:8080", "/file");
+  setup_httpserv();
+  let response = request("/file");
   let (first, body) = strip_headers(response, "text/plain", 2);
   assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
   assert_eq!(body, "2\n", "wrong body");
@@ -90,18 +88,16 @@ fn test_file() {
 
 #[test]
 fn test_subdir_redirect() {
-  println!("{:?}", std::env::current_dir());
-  setup_httpserv("localhost:8080");
-  let response = request("localhost:8080", "/subdir");
+  setup_httpserv();
+  let response = request("/subdir");
   let (first, _) = strip_headers(response, "text/plain", 0);
   assert_eq!(first, "HTTP/1.1 301 Moved Permanently", "wrong status reply");
 }
 
 #[test]
 fn test_subdir() {
-  println!("{:?}", std::env::current_dir());
-  setup_httpserv("localhost:8080");
-  let response = request("localhost:8080", "/subdir/");
+  setup_httpserv();
+  let response = request("/subdir/");
   let (first, body) = strip_headers(response, "text/plain", 2);
   assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
   assert_eq!(body, "3\n", "wrong body");
@@ -109,17 +105,52 @@ fn test_subdir() {
 
 #[test]
 fn test_subdir_file() {
-  println!("{:?}", std::env::current_dir());
-  setup_httpserv("localhost:8080");
-  let response = request("localhost:8080", "/subdir/file");
+  setup_httpserv();
+  let response = request("/subdir/file");
   let (first, body) = strip_headers(response, "text/plain", 2);
   assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
   assert_eq!(body, "4\n", "wrong body");
 }
 
-/*
-tests left to do:
-- URL with ..
-- URLs not starting with /
-- symlinks
-*/
+#[test]
+fn test_malicious() {
+  setup_httpserv();
+  let response = request("subdir/../../basic_test.rs");
+  assert_eq!(response, "");
+}
+
+#[test]
+fn test_no_leading_slash() {
+  setup_httpserv();
+  let response = request("");
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "1\n", "wrong body");
+}
+
+#[test]
+fn test_no_leading_slash_file() {
+  setup_httpserv();
+  let response = request("file");
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "2\n", "wrong body");
+}
+
+#[test]
+fn test_no_leading_slash_subdir() {
+  setup_httpserv();
+  let response = request("subdir/file");
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "4\n", "wrong body");
+}
+
+//TODO: Fix this #[test]
+fn test_symlink_path() {
+  setup_httpserv();
+  let response = request("/subdir_ln/file");
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "4\n", "wrong body");
+}
