@@ -66,10 +66,9 @@ fn main() {
     }
   };
 
-  let load_time = Instant::now().duration_since(load_start);
   println!(
     "Launched in {}us; listening on {}; serving from {}",
-    load_time.as_micros(),
+    (Instant::now() - load_start).as_micros(),
     server.config().hostname,
     server.config().root.display()
   );

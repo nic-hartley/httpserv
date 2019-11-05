@@ -77,3 +77,5 @@ wrong.
 - If a file is changed between when the HTTP headers are sent and when the
   rest of the body is sent, the reported `Content-Length` will be incorrect,
   so the browser may truncate the content or display an error.
+- A malicious actor could send a partial request (e.g. never ending the header)
+  and lock up the server.
