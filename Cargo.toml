@@ -1,6 +1,6 @@
 [package]
 name = "httpserv"
-version = "0.6.1"
+version = "1.0.0"
 authors = ["Nic Hartley <nic@cybers.eco>"]
 edition = "2018"
 license = "BSD-3-Clause"
