@@ -56,15 +56,17 @@ impl Request {
         .find(" ")
         .ok_or_else(|| ReqFail::InvalidFormat(first_line.clone()))?;
       let url = &first_line[url_start..url_start + url_length];
-      let url_path = Path::new(&url);
-      if url_path.components().any(|c| c == Component::ParentDir) {
-        return Err(ReqFail::Malicious(".. component in path"));
-      }
       let end = url
         .find('?')
         .or_else(|| url.find('#'))
         .unwrap_or_else(|| url.len());
-      url[..end].to_owned()
+      let url = &url[..end];
+      let url_path = Path::new(url);
+      if url_path.components().any(|c| c == Component::ParentDir) {
+        return Err(ReqFail::Malicious(".. component in path"));
+      }
+
+      url.to_owned()
     };
     // TODO: Read through request to get url + headers
     // let content_types;
@@ -73,7 +75,6 @@ impl Request {
       if line == "" {
         break;
       }
-      // println!("Header: {}", line);
     }
 
     Ok(Request { path })
@@ -86,7 +87,7 @@ pub enum Response {
     headers: Vec<(String, String)>,
     body_type: String,
     body_len: usize,
-    body: File, // TODO replace with concrete type?
+    body: File,
   },
   NotFound,
   Moved(String),

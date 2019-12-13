@@ -51,8 +51,6 @@ fn strip_headers(mut resp: String, ctype: &str, len: usize) -> (String, String) 
   let body = headers.split_off(last_nl).split_off(2);
 
   let got_headers = headers.split_terminator('\n').collect::<Vec<_>>();
-  println!("{:?}", first_line);
-  println!("{:?}", got_headers);
   for req_header in required_headers.into_iter() {
     assert!(got_headers.contains(&&req_header[..]), "missing required header: {}", req_header);
   }
@@ -115,8 +113,26 @@ fn test_subdir_file() {
 #[test]
 fn test_malicious() {
   setup_httpserv();
-  let response = request("subdir/../../basic_test.rs");
+  let response = request("/subdir/../../basic_test.rs");
   assert_eq!(response, "");
+}
+
+#[test]
+fn test_nonmalicious_anchor() {
+  setup_httpserv();
+  let response = request("/file#../..");
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "2\n", "wrong body");
+}
+
+#[test]
+fn test_nonmalicious_query() {
+  setup_httpserv();
+  let response = request("/file?../..");
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "2\n", "wrong body");
 }
 
 #[test]
@@ -146,7 +162,8 @@ fn test_no_leading_slash_subdir() {
   assert_eq!(body, "4\n", "wrong body");
 }
 
-//TODO: Fix this #[test]
+// TODO: Reenable once I'm off WSL
+// #[test]
 fn test_symlink_path() {
   setup_httpserv();
   let response = request("/subdir_ln/file");
