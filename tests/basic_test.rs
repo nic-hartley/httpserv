@@ -162,6 +162,30 @@ fn test_no_leading_slash_subdir() {
   assert_eq!(body, "4\n", "wrong body");
 }
 
+#[test]
+fn test_pct_encode() {
+  setup_httpserv();
+  let response = request("f%69le"); // file
+  let (first, body) = strip_headers(response, "text/plain", 2);
+  assert_eq!(first, "HTTP/1.1 200 OK", "wrong status reply");
+  assert_eq!(body, "2\n", "wrong body");
+}
+
+#[test]
+fn test_pct_encode_404() {
+  setup_httpserv();
+  let response = request("f%6Ble"); // fkle
+  let (first, _) = strip_headers(response, "text/plain", 0);
+  assert_eq!(first, "HTTP/1.1 404 Not Found", "wrong status reply");
+}
+
+#[test]
+fn test_pct_encode_slash() {
+  setup_httpserv();
+  let response = request("subdir%2Ffile"); // %2F shouldn't split like real /
+  assert_eq!(response, "");
+}
+
 // TODO: Reenable once I'm off WSL
 // #[test]
 fn test_symlink_path() {

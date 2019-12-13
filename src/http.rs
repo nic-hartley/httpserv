@@ -14,6 +14,7 @@ pub enum ReqFail {
   InvalidFormat(String),
   IOOpFailed(io::Error),
   Malicious(&'static str),
+  InvalidPercentEncode,
 }
 
 impl fmt::Display for ReqFail {
@@ -27,8 +28,31 @@ impl fmt::Display for ReqFail {
         write!(f, "Failed to complete action because of {:?}", e)
       }
       ReqFail::Malicious(w) => write!(f, "Suspected maliocious request: {}", w),
+      ReqFail::InvalidPercentEncode => write!(f, "Invalid percent encoding"),
     }
   }
+}
+
+fn percent_decode(mut inp: &str) -> Option<String> {
+  let mut out = Vec::new();
+  loop {
+      let next_pct = match inp.find('%') {
+          Some(l) if l < inp.len() - 2 => l,
+          Some(_) => return None,
+          None => break,
+      };
+      let (push, pct_rest) = inp.split_at(next_pct);
+      out.extend_from_slice(push.as_bytes());
+      let (pct, rest) = pct_rest.split_at(3);
+      inp = rest;
+      if pct == "%2F" {
+        return None;
+      }
+      let val = u8::from_str_radix(&pct[1..], 16).ok()?;
+      out.push(val);
+  }
+  out.extend_from_slice(inp.as_bytes());
+  String::from_utf8(out).ok()
 }
 
 pub struct Request {
@@ -65,8 +89,7 @@ impl Request {
       if url_path.components().any(|c| c == Component::ParentDir) {
         return Err(ReqFail::Malicious(".. component in path"));
       }
-
-      url.to_owned()
+      percent_decode(url).ok_or(ReqFail::InvalidPercentEncode)?
     };
     // TODO: Read through request to get url + headers
     // let content_types;
