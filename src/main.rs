@@ -96,17 +96,17 @@ mod tests {
       );
       assert_eq!(
         cfg.mappings.get(OsStr::new("html")),
-        Some(&"text/html".into()),
+        Some(&"text/html;charset=utf-8".into()),
         "mappings[html] is wrong"
       );
       assert_eq!(
         cfg.mappings.get(OsStr::new("css")),
-        Some(&"text/css".into()),
+        Some(&"text/css;charset=utf-8".into()),
         "mappings[css] is wrong"
       );
       assert_eq!(
         cfg.mappings.get(OsStr::new("js")),
-        Some(&"text/javascript".into()),
+        Some(&"text/javascript;charset=utf-8".into()),
         "mappings[js] is wrong"
       );
       assert_eq!(
@@ -173,17 +173,17 @@ mod tests {
     if let Ok(cfg) = cfg {
       assert_eq!(
         cfg.mappings.get(OsStr::new("html")),
-        Some(&"text/html".into()),
+        Some(&"text/html;charset=utf-8".into()),
         "Old mapping was changed"
       );
       assert_eq!(
         cfg.mappings.get(OsStr::new("css")),
-        Some(&"text/css".into()),
+        Some(&"text/css;charset=utf-8".into()),
         "Old mapping was changed"
       );
       assert_eq!(
         cfg.mappings.get(OsStr::new("js")),
-        Some(&"text/javascript".into()),
+        Some(&"text/javascript;charset=utf-8".into()),
         "Old mapping was changed"
       );
       assert_eq!(

@@ -39,7 +39,7 @@ fn strip_headers(mut resp: String, ctype: &str, len: usize) -> (String, String) 
   let required_headers = vec![
     "Cache-Control: no-cache".into(),
     "Connection: close".into(),
-    format!("Content-Type: {}; charset=UTF-8", ctype),
+    format!("Content-Type: {}", ctype),
     format!("Content-Length: {}", len),
   ];
 
