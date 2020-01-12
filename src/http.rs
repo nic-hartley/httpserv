@@ -170,7 +170,7 @@ impl Response {
               "HTTP/1.1 {code}\n",
               "Cache-Control: no-cache\n",
               "Connection: close\n",
-              "Content-Type: {type}; charset=UTF-8\n",
+              "Content-Type: {type}\n",
               "Content-Length: {len}\n",
           ),
           code = code,

@@ -22,9 +22,9 @@ fn get_cfg(args: impl Iterator<Item = String>) -> Result<Config, ArgFail> {
   let root = Path::new(&args.next().unwrap_or(".".into())).to_path_buf();
   let hostname = args.next().unwrap_or("localhost:8080".into());
   let mut mappings = HashMap::new();
-  mappings.insert("html".into(), "text/html".into());
-  mappings.insert("css".into(), "text/css".into());
-  mappings.insert("js".into(), "text/javascript".into());
+  mappings.insert("html".into(), "text/html;charset=utf-8".into());
+  mappings.insert("css".into(), "text/css;charset=utf-8".into());
+  mappings.insert("js".into(), "text/javascript;charset=utf-8".into());
   mappings.insert("png".into(), "image/png".into());
   mappings.insert("jpg".into(), "image/jpeg".into());
   mappings.insert("jpeg".into(), "image/jpeg".into());
