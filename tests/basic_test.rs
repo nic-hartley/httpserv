@@ -26,7 +26,12 @@ fn setup_httpserv() {
 fn request(url: &str) -> String {
   use std::io::{Read, Write};
 
-  let mut stream = TcpStream::connect("localhost:18203").expect("failed to connect");
+  let mut stream = loop {
+    match TcpStream::connect("localhost:18203") {
+      Ok(s) => break s,
+      Err(_) => std::thread::sleep(std::time::Duration::from_millis(100)),
+    }
+  };
   // When we need to send headers, maybe just trim off that last \n?
   // then the caller can send it on its own when ready
   write!(stream, "GET {} HTTP/1.1\n\n", url).expect("failed to write");
