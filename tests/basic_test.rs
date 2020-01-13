@@ -192,7 +192,7 @@ fn test_pct_encode_slash() {
 }
 
 // TODO: Reenable once I'm off WSL
-// #[test]
+#[test]
 fn test_symlink_path() {
   setup_httpserv();
   let response = request("/subdir_ln/file");
