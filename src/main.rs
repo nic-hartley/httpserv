@@ -30,6 +30,10 @@ fn get_cfg(args: impl Iterator<Item = String>) -> Result<Config, ArgFail> {
   mappings.insert("jpeg".into(), "image/jpeg".into());
   mappings.insert("ico".into(), "image/vnd.microsoft.icon".into());
   mappings.insert("svg".into(), "image/svg+xml".into());
+  mappings.insert("wasm".into(), "application/wasm".into());
+  mappings.insert("pdf".into(), "application/pdf".into());
+  mappings.insert("pdf".into(), "application/pdf".into());
+  mappings.insert("zip".into(), "application/zip".into());
   for pair in args {
     let eq_idx = pair
       .find("=")
