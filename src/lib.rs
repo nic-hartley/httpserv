@@ -54,7 +54,7 @@ impl Httpserv {
     }
     response.write(conn)?;
     if self.cfg.log {
-      println!(" in {}ms", (Instant::now() - begin).as_micros());
+      println!(" in {}us", (Instant::now() - begin).as_micros());
     }
     Ok(())
   }
